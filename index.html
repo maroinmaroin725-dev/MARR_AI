@@ -68,6 +68,14 @@
       <h3>إعدادات MARR</h3>
 
       <div class="row">
+        <label class="small" style="min-width:90px;">مزود الخدمة:</label>
+        <select id="provider-select" style="padding:8px; border-radius:8px;">
+          <option value="google">Google Generative</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+
+      <div class="row">
         <label class="small" style="min-width:90px;">طريقة الحفظ:</label>
         <select id="storage-method" style="padding:8px; border-radius:8px;">
           <option value="encrypted-local">تشغيل تشفير محلي (موصى)</option>
@@ -88,7 +96,7 @@
       </div>
 
       <div class="row plain-row" style="display:none;">
-        <label class="small" style="min-width:90px;">API Key:</label>
+        <label class="small" style="min-width:90px;">API Key (مباشر):</label>
         <input id="api-key-plain" type="password" placeholder="احفظ المفتاح محلياً (غير آمن)" />
         <button class="btn" id="store-key-plain">حفظ مفتاح محلي</button>
       </div>
@@ -99,10 +107,24 @@
         <button class="btn" id="store-key-server">رفع المفتاح إلى الخادم</button>
       </div>
 
+      <div class="row">
+        <label class="small" style="min-width:90px;">مفتاح OpenAI (اختياري):</label>
+        <input id="openai-key" type="password" placeholder="ضع مفتاح OpenAI إن رغبت" />
+        <button class="btn" id="store-openai-plain">حفظ OpenAI محلياً</button>
+      </div>
+
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
         <button class="btn" id="modal-close">إغلاق</button>
         <button class="btn solid" id="save-settings">حفظ الإعدادات</button>
       </div>
 
       <p class="small" style="margin-top:12px; color:var(--muted);">
-        ملاحظة أمنيّة: حفظ المفتاح في المتصفح يحمل مخاطر؛ الخيار الآمن هو
+        ملاحظة أمنيّة: حفظ المفتاح في المتصفح يحمل مخاطر؛ الخيار الآمن هو تشغيل "خادم بروكسي" خارجي يحفظ المفتاح على الخادم. خيار "تشفير محلي" يخزن المفتاح مشفراً باستخدام كلمة مرور تختارها.
+      </p>
+    </div>
+  </div>
+
+  <script src="storage.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

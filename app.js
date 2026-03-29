@@ -1,7 +1,9 @@
 // app.js - منطق الواجهة، إدارة المحادثات، إرسال الطلبات (محلي أو عبر بروكسي)
-// يعتمد على storage.js
+// يعتمد على storage.js (encrypt/decrypt/storePlain/getPlain)
 
-// عناصر DOM أساسية
+//
+// DOM elements
+//
 const chatArea = document.getElementById('chat-area');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
@@ -25,6 +27,9 @@ const importBtn = document.getElementById('import-chats');
 const importFile = document.getElementById('import-file');
 const clearStorageBtn = document.getElementById('clear-storage');
 const searchInput = document.getElementById('search-input');
+const providerSelect = document.getElementById('provider-select');
+const openaiKeyInput = document.getElementById('openai-key');
+const storeOpenAIPlainBtn = document.getElementById('store-openai-plain');
 
 const SETTINGS_KEY = 'marr_front_settings_v1';
 const CHATS_KEY = 'marr_chats_v1';
@@ -35,7 +40,6 @@ marked.setOptions({ breaks: true });
 function renderMd(md) {
   const raw = marked.parse(md || '');
   const sanitized = DOMPurify.sanitize(raw, {ALLOWED_ATTR:['href','target','class']});
-  // apply highlight (highlight.js auto-detect)
   const container = document.createElement('div');
   container.innerHTML = sanitized;
   container.querySelectorAll('pre code').forEach((block) => {
@@ -44,17 +48,26 @@ function renderMd(md) {
   return container.innerHTML;
 }
 
-// إعدادات وتحميل
+//
+// Settings load/save and UI toggles
+//
 function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     if(s.storageMethod) storageMethod.value = s.storageMethod;
     if(s.proxyUrl) proxyUrl.value = s.proxyUrl;
+    if(s.provider) providerSelect.value = s.provider;
+    if(s.openaiKeyPlain) openaiKeyInput.value = s.openaiKeyPlain;
   } catch(e) {}
   toggleSettingsRows();
 }
 function saveSettings() {
-  const s = { storageMethod: storageMethod.value, proxyUrl: proxyUrl.value };
+  const s = {
+    storageMethod: storageMethod.value,
+    proxyUrl: proxyUrl.value,
+    provider: providerSelect.value,
+    openaiKeyPlain: openaiKeyInput.value || ''
+  };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   showToast('تم حفظ إعدادات الواجهة');
   closeModal();
@@ -66,7 +79,9 @@ function toggleSettingsRows() {
   document.querySelectorAll('.server-row').forEach(el => el.style.display = method === 'server-proxy' ? 'flex' : 'none');
 }
 
-// toasts
+//
+// Toast
+//
 function showToast(msg, t=2000){
   const d = document.createElement('div');
   d.textContent = msg;
@@ -83,7 +98,9 @@ function showToast(msg, t=2000){
   setTimeout(()=> d.remove(), t);
 }
 
-// المحادثات
+//
+// Chats state and functions
+//
 let chats = [];
 let activeChatId = null;
 
@@ -125,7 +142,9 @@ function deleteChat(id) {
   if(activeChatId === id) { chatArea.innerHTML=''; activeChatId=null; if(chats[0]) openChat(chats[0].id); }
 }
 
-// rendering
+//
+// Render chat list and message UI (with copy buttons & appear animation)
+//
 function renderChatList(filter='') {
   chatListEl.innerHTML = '';
   const list = chats.filter(c => c.title.includes(filter) || (c.messages && c.messages.some(m => m.text.includes(filter))));
@@ -144,11 +163,12 @@ function renderChatList(filter='') {
     chatListEl.appendChild(el);
   });
 }
+
 function showChatContextMenu(chat, x, y) {
   const menu = document.createElement('div');
   menu.style.position='fixed'; menu.style.left=x+'px'; menu.style.top=y+'px'; menu.style.zIndex=9999;
   menu.style.background='var(--panel)'; menu.style.border='1px solid var(--glass)'; menu.style.padding='6px'; menu.style.borderRadius='8px';
-  menu.innerHTML = `<div style="padding:6px;cursor:pointer;">إعادة تسمية</div><div style="padding:6px;cursor:pointer;">حذف</div><div style="padding:6px;cursor:pointer;">تصدير</div>`;
+  menu.innerHTML = `<div style="padding:6px;cursor:pointer;">إعادة تسمية</div><div style="padding:6px;cursor:pointer;">حذف</div><div style="padding:6px;cursor:pointer;">تص��ير</div>`;
   menu.children[0].addEventListener('click', ()=> {
     const title = prompt('اكتب عنوان المحادثة:', chat.title);
     if(title) renameChat(chat.id, title);
@@ -164,18 +184,49 @@ function appendMessageToUI(role, text, ts=Date.now()) {
   const wrapper = document.createElement('div'); wrapper.className = 'message' + (role==='user' ? ' you' : '');
   const avatar = document.createElement('div'); avatar.className = 'avatar ' + (role==='user' ? 'user-avatar' : 'ai-avatar');
   avatar.innerHTML = role==='user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-bolt"></i>';
-  const bubble = document.createElement('div'); bubble.className = 'bubble';
+
+  const bubble = document.createElement('div'); bubble.className = 'bubble new'; // add new for animation
   bubble.innerHTML = renderMd(text);
+
+  // tools (copy)
+  const tools = document.createElement('div'); tools.className = 'msg-tools';
+  const copyBtn = document.createElement('button'); copyBtn.className = 'msg-tool-btn'; copyBtn.title = 'نسخ النص';
+  copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(()=> showToast('تم نسخ النص'));
+  });
+
+  const copyPlainBtn = document.createElement('button'); copyPlainBtn.className = 'msg-tool-btn'; copyPlainBtn.title = 'نسخ بدون تنسيق';
+  copyPlainBtn.innerHTML = '<i class="fa-solid fa-file-lines"></i>';
+  copyPlainBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // strip markdown to plain text by creating temporary element and reading textContent of sanitized HTML
+    const tmp = document.createElement('div');
+    tmp.innerHTML = DOMPurify.sanitize(marked.parse(text));
+    navigator.clipboard.writeText(tmp.textContent || tmp.innerText || text).then(()=> showToast('تم النسخ كنص عادي'));
+  });
+
+  tools.appendChild(copyBtn);
+  tools.appendChild(copyPlainBtn);
+  bubble.appendChild(tools);
+
   const meta = document.createElement('div'); meta.className='meta'; meta.textContent = new Date(ts).toLocaleTimeString('ar-EG', {hour:'2-digit',minute:'2-digit'});
   bubble.appendChild(meta);
+
   wrapper.appendChild(avatar); wrapper.appendChild(bubble);
-  chatArea.appendChild(wrapper); chatArea.scrollTop = chatArea.scrollHeight;
+  chatArea.appendChild(wrapper);
+  chatArea.scrollTop = chatArea.scrollHeight;
+
+  // remove animation class after short time
+  setTimeout(()=> bubble.classList.remove('new'), 800);
 }
 
-// util
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-// export/import
+//
+// Export/Import
+//
 function exportChats() {
   const data = JSON.stringify({ exportedAt: Date.now(), chats }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
@@ -207,7 +258,40 @@ function importChatsFile(file) {
   reader.readAsText(file);
 }
 
-// إرسال الرسالة: يختار بين تشفير محلي أو plain أو بروكسي
+//
+// Helper: retrieve API key according to chosen storage method (works for both Google & OpenAI keys)
+//
+async function resolveStoredApiKey() {
+  const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  const method = settings.storageMethod || storageMethod.value;
+  // priority: openai-key if provider openai and openaiKeyPlain present
+  const provider = settings.provider || providerSelect.value || 'google';
+  if(provider === 'openai') {
+    // try stored openai key in settings plain
+    if(settings.openaiKeyPlain) return settings.openaiKeyPlain;
+    // otherwise fall through to stored generic key
+  }
+
+  if(method === 'plain-local') {
+    return getPlainKey();
+  } else if(method === 'encrypted-local') {
+    const pass = sessionStorage.getItem('marr_enc_pass') || encPass.value;
+    if(!pass) {
+      const p = prompt('أدخل كلمة مرور التشفير لفك المفتاح:');
+      if(!p) return null;
+      sessionStorage.setItem('marr_enc_pass', p);
+    }
+    const key = await decryptKeyWithPassphrase(sessionStorage.getItem('marr_enc_pass') || encPass.value);
+    return key;
+  } else {
+    // server-proxy doesn't expose key to client
+    return null;
+  }
+}
+
+//
+// sendMessage(): supports Google and OpenAI providers (client-side). For server proxy use, follow proxy path.
+//
 async function sendMessage() {
   const text = userInput.value.trim(); if(!text) return;
   if(!activeChatId) createNewChat();
@@ -217,27 +301,15 @@ async function sendMessage() {
   sendBtn.disabled = true;
 
   const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  const provider = settings.provider || providerSelect.value || 'google';
   const method = settings.storageMethod || storageMethod.value;
 
   try {
-    let apiKey = '';
-    if(method === 'plain-local') {
-      apiKey = getPlainKey();
-    } else if(method === 'encrypted-local') {
-      const pass = sessionStorage.getItem('marr_enc_pass') || encPass.value;
-      if(!pass) {
-        // ask user for passphrase
-        const p = prompt('أدخل كلمة مرور التشفير لفك المفتاح:');
-        if(!p) { throw new Error('No passphrase'); }
-        sessionStorage.setItem('marr_enc_pass', p);
-      }
-      apiKey = await decryptKeyWithPassphrase(sessionStorage.getItem('marr_enc_pass') || encPass.value);
-      if(!apiKey) throw new Error('فشل فك التشفير - كلمة مرور خاطئة أو لا يوجد مفتاح');
-    } else if(method === 'server-proxy') {
-      // call proxy without exposing key
+    // If using server proxy and provider is Google, call proxy /generate (proxy must be configured)
+    if(method === 'server-proxy') {
       const proxy = settings.proxyUrl || proxyUrl.value;
       if(!proxy) throw new Error('حدد عنوان بروكسي في الإعدادات');
-      const url = proxy.replace(/\/$/, '') + '/generate';
+      const url = proxy.replace(/\/$/,'') + '/generate';
       const payload = {
         contents: [{ parts: [{ text }] }],
         systemInstruction: { parts: [{ text: 'أنت MARR، تحدث بالعربية الفصحى وباحترام. إذا طُلب كوداً قدمه منسقاً.' }] },
@@ -248,30 +320,55 @@ async function sendMessage() {
       const data = await res.json();
       const aiText = extractAiText(data);
       appendMessageToChat('ai', aiText);
-      typingEl.style.display='none'; sendBtn.disabled=false; return;
+      return;
     }
 
-    // إذا حصلنا على apiKey نستخدمه مباشرة
-    if(!apiKey) throw new Error('لا يوجد مفتاح API متاح');
+    // Else resolve key locally (may return null for server-proxy)
+    const apiKey = await resolveStoredApiKey();
+    if(!apiKey) throw new Error('لا يوجد مفتاح API متاح أو يتطلب استخدام بروكسي');
 
-    const settingsObj = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    const model = settingsObj.model || 'gemini-flash-latest';
-    const url = `${API_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-    const payload = {
-      contents: [{ parts: [{ text }] }],
-      systemInstruction: { parts: [{ text: 'أنت MARR، تحدث بالعربية الفصحى وباحترام. إذا طُلب كوداً قدمه منسقاً.' }] },
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
-    };
-
-    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if(!res.ok) {
-      const t = await res.text(); console.error('api error', t);
-      appendMessageToChat('ai', `عذراً، خطأ في استجابة الـ API (${res.status}).`);
+    if(provider === 'google') {
+      const model = (settings.model || 'gemini-flash-latest');
+      const url = `${API_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const payload = {
+        contents: [{ parts: [{ text }] }],
+        systemInstruction: { parts: [{ text: 'أنت MARR، تحدث بالعربية الفصحى وباحترام. إذا طُلب كوداً قدمه منسقاً.' }] },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      };
+      const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      if(!res.ok) {
+        const t = await res.text(); console.error('api error', t);
+        appendMessageToChat('ai', `عذراً، خطأ في استجابة الـ API (${res.status}).`);
+      } else {
+        const data = await res.json();
+        const aiText = extractAiText(data);
+        appendMessageToChat('ai', aiText);
+      }
+    } else if(provider === 'openai') {
+      // OpenAI Chat Completions
+      const model = (settings.openaiModel || 'gpt-3.5-turbo');
+      const url = 'https://api.openai.com/v1/chat/completions';
+      const payload = {
+        model,
+        messages: [
+          { role: 'system', content: 'أنت MARR، تحدث بالعربية الفصحى وباحترام. إذا طُلب كوداً قدمه منسقاً.' },
+          { role: 'user', content: text }
+        ],
+        max_tokens: 1024,
+        temperature: 0.7
+      };
+      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(payload) });
+      if(!res.ok) {
+        const txt = await res.text();
+        console.error('OpenAI error', res.status, txt);
+        appendMessageToChat('ai', `عذراً، خطأ من OpenAI (${res.status}).`);
+      } else {
+        const data = await res.json();
+        const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        appendMessageToChat('ai', content || 'لم يتم الحصول على نص من OpenAI');
+      }
     } else {
-      const data = await res.json();
-      const aiText = extractAiText(data);
-      appendMessageToChat('ai', aiText);
+      throw new Error('مزود غير مدعوم');
     }
 
   } catch (err) {
@@ -286,6 +383,8 @@ function extractAiText(data) {
   try {
     if(data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
       return data.candidates[0].content.parts.map(p=>p.text).join('\n');
+    } else if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+      return data.choices[0].message.content;
     } else if (data.output && Array.isArray(data.output) && data.output[0] && data.output[0].content) {
       return JSON.stringify(data.output[0].content);
     } else {
@@ -294,7 +393,9 @@ function extractAiText(data) {
   } catch(e) { return 'خطأ في تحليل الاستجابة.'; }
 }
 
-// events
+//
+// Event bindings
+//
 sendBtn.addEventListener('click', sendMessage);
 userInput.addEventListener('keypress', (e)=> { if(e.key==='Enter') sendMessage(); });
 newChatBtn.addEventListener('click', ()=> createNewChat());
@@ -330,6 +431,15 @@ storeKeyServerBtn.addEventListener('click', async ()=> {
     if(!res.ok) throw new Error('fail');
     showToast('تم رفع المفتاح إلى الخادم');
   } catch(e) { showToast('فشل رفع المفتاح إلى الخادم'); }
+});
+
+storeOpenAIPlainBtn.addEventListener('click', ()=> {
+  const k = openaiKeyInput.value || prompt('أدخل مفتاح OpenAI:');
+  if(!k) return;
+  const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  s.openaiKeyPlain = k;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  showToast('تم حفظ مفتاح OpenAI في الإعدادات (محلي)');
 });
 
 exportBtn.addEventListener('click', exportChats);

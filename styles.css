@@ -33,12 +33,21 @@ button.btn.solid{ background:var(--accent); color:#000; border:none; }
 .chat-area{ flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:18px; scroll-behavior:smooth; min-height:0; }
 .message{ display:flex; gap:14px; max-width:85%; align-items:flex-start; }
 .message.you{ margin-inline-start:auto; flex-direction:row-reverse; }
-.avatar{ width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.avatar{ width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:4px; }
 .ai-avatar{ background:var(--accent); color:#000; box-shadow:0 8px 28px rgba(0,242,254,0.06); }
 .user-avatar{ background:#30363d; color:#fff; }
 
-.bubble{ background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); padding:12px 14px; border-radius:10px; border:1px solid var(--glass); color:var(--text); line-height:1.7; box-shadow: 0 6px 20px rgba(2,6,12,0.5); overflow-wrap:break-word; }
+.bubble{ position:relative; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); padding:12px 14px; border-radius:10px; border:1px solid var(--glass); color:var(--text); line-height:1.7; box-shadow: 0 6px 20px rgba(2,6,12,0.5); overflow-wrap:break-word; transition: box-shadow .25s, transform .18s; }
+.bubble.new{ animation: pop .36s cubic-bezier(.2,.9,.2,1); box-shadow:0 12px 40px rgba(0,242,254,0.12); transform: translateY(-6px); }
+@keyframes pop { 0%{ transform: scale(.98); opacity:0 } 60%{ transform: scale(1.02); opacity:1 } 100%{ transform: scale(1); opacity:1 } }
+
 .bubble pre{ background:#0b0f13; padding:12px; border-radius:8px; overflow:auto; font-family:'JetBrains Mono',monospace; font-size:.95rem; margin:8px 0; border:1px solid rgba(255,255,255,0.03); }
+
+/* أدوات الرسالة (نسخ...) */
+.msg-tools{ position:absolute; top:6px; left:8px; display:flex; gap:6px; opacity:0; transition:opacity .18s; }
+.message:hover .msg-tools{ opacity:1; }
+.msg-tool-btn{ background:transparent; border:none; color:var(--muted); padding:6px; border-radius:6px; cursor:pointer; font-size:0.9rem; }
+.msg-tool-btn:hover{ background:rgba(255,255,255,0.02); color:var(--text); }
 
 .meta{ font-size:0.78rem; color:var(--muted); margin-top:6px; }
 
