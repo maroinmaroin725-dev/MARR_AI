@@ -1,0 +1,60 @@
+:root{
+  --accent: #00f2fe;
+  --bg: #02040a;
+  --panel: #0d1117;
+  --muted: #9aa4ad;
+  --text: #e6edf3;
+  --glass: rgba(255,255,255,0.06);
+  --radius: 12px;
+}
+
+*{ box-sizing: border-box; }
+
+html,body{ height:100%; margin:0; font-family:'Cairo',sans-serif; background:radial-gradient(ellipse at 10% 10%, rgba(0,242,254,0.03), transparent),var(--bg); color:var(--text); }
+
+.app{ display:flex; height:100vh; overflow:hidden; gap:18px; padding:20px; }
+
+.sidebar{ width:320px; background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border-left:1px solid var(--glass); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px; min-width:220px; }
+.marr-logo{ font-weight:800; font-size:1.6rem; letter-spacing:3px; color:var(--accent); text-align:center; text-shadow:0 0 14px rgba(0,242,254,0.12); }
+.controls{ display:flex; flex-direction:column; gap:8px; }
+button.btn{ background:transparent; border:1px dashed var(--accent); color:var(--accent); padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:8px; justify-content:center; }
+button.btn.solid{ background:var(--accent); color:#000; border:none; }
+.search{ width:100%; padding:8px; border-radius:8px; background:transparent; border:1px solid var(--glass); color:var(--text); }
+
+.chat-list{ margin-top:6px; overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; max-height:40vh; }
+.chat-item{ background:transparent; border:1px solid transparent; padding:10px; border-radius:10px; color:var(--muted); cursor:pointer; font-size:0.95rem; }
+.chat-item.active{ background:linear-gradient(90deg, rgba(0,242,254,0.04), rgba(0,242,254,0.02)); color:var(--text); border:1px solid rgba(0,242,254,0.07); }
+
+.main-panel{ flex:1; display:flex; flex-direction:column; gap:12px; min-width:0; }
+.app-header{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-bottom:1px solid var(--glass); }
+.status{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:0.95rem; }
+.status-dot{ width:10px; height:10px; border-radius:50%; background:#238636; display:inline-block; }
+
+.chat-area{ flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:18px; scroll-behavior:smooth; min-height:0; }
+.message{ display:flex; gap:14px; max-width:85%; align-items:flex-start; }
+.message.you{ margin-inline-start:auto; flex-direction:row-reverse; }
+.avatar{ width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ai-avatar{ background:var(--accent); color:#000; box-shadow:0 8px 28px rgba(0,242,254,0.06); }
+.user-avatar{ background:#30363d; color:#fff; }
+
+.bubble{ background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); padding:12px 14px; border-radius:10px; border:1px solid var(--glass); color:var(--text); line-height:1.7; box-shadow: 0 6px 20px rgba(2,6,12,0.5); overflow-wrap:break-word; }
+.bubble pre{ background:#0b0f13; padding:12px; border-radius:8px; overflow:auto; font-family:'JetBrains Mono',monospace; font-size:.95rem; margin:8px 0; border:1px solid rgba(255,255,255,0.03); }
+
+.meta{ font-size:0.78rem; color:var(--muted); margin-top:6px; }
+
+.input-area{ padding:12px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); display:flex; gap:12px; align-items:center; border:1px solid var(--glass); }
+.input-area input[type="text"]{ flex:1; background:transparent; border:none; color:var(--text); padding:10px; outline:none; font-size:1rem; }
+
+.send-btn{ background:var(--accent); border:none; color:#000; padding:8px 12px; border-radius:10px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; font-weight:700; }
+
+.typing{ font-size:0.85rem; color:var(--accent); display:inline-block; min-width:120px; }
+.small{ font-size:0.85rem; color:var(--muted); }
+
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:60; }
+.modal{ background:var(--panel); border-radius:12px; padding:18px; width:min(640px,95%); border:1px solid var(--glass); box-shadow:0 12px 40px rgba(0,0,0,0.6); }
+.modal h3{ margin:0 0 10px 0; color:var(--accent); }
+.modal .row{ display:flex; gap:10px; margin-bottom:10px; align-items:center; }
+.modal input[type="password"], .modal input[type="text"], .modal select{ flex:1; padding:8px; border-radius:8px; border:1px solid #122; background:transparent; color:var(--text); }
+
+@media (max-width:900px){ .sidebar{ position:fixed; right:12px; top:12px; width:86%; max-width:380px; height:calc(100vh - 24px); overflow:auto; } .app{ padding:12px; } }
+@media (max-width:600px){ .app{ gap:8px; padding:8px; flex-direction:column; } .sidebar{ width:100%; height:auto; position:relative; border-radius:10px; } }
