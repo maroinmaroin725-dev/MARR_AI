@@ -168,7 +168,7 @@ function showChatContextMenu(chat, x, y) {
   const menu = document.createElement('div');
   menu.style.position='fixed'; menu.style.left=x+'px'; menu.style.top=y+'px'; menu.style.zIndex=9999;
   menu.style.background='var(--panel)'; menu.style.border='1px solid var(--glass)'; menu.style.padding='6px'; menu.style.borderRadius='8px';
-  menu.innerHTML = `<div style="padding:6px;cursor:pointer;">إعادة تسمية</div><div style="padding:6px;cursor:pointer;">حذف</div><div style="padding:6px;cursor:pointer;">تص��ير</div>`;
+  menu.innerHTML = `<div style="padding:6px;cursor:pointer;">إعادة تسمية</div><div style="padding:6px;cursor:pointer;">حذف</div><div style="padding:6px;cursor:pointer;">تصدير</div>`;
   menu.children[0].addEventListener('click', ()=> {
     const title = prompt('اكتب عنوان المحادثة:', chat.title);
     if(title) renameChat(chat.id, title);
