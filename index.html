@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARR | ذكاء بلا حدود</title>
+    
+    <!-- الخطوط والمكتبات الخارجية -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        :root {
+            --accent: #00f2fe;
+            --bg-deep: #02040a;
+            --panel: #0d1117;
+            --text: #e6edf3;
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { box-sizing: border-box; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-deep);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /*Sidebar - الجانب الأيسر*/
+        .sidebar {
+            width: 280px;
+            background: var(--panel);
+            border-left: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .chat-list {
+            margin-top: 20px;
+            flex: 1;
+        }
+
+        .chat-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-item:hover { background: rgba(0,242,254,0.1); }
+
+        .chat-item.active { background: rgba(0,242,254,0.2); border: 1px solid var(--accent); }
+
+        .delete-chat { color: #ff5555; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; }
+        .chat-item:hover .delete-chat { opacity: 1; }
+
+        .settings-btn {
+            margin-top: auto;
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-content {
+            background: var(--panel);
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid var(--accent);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            background: #161b22;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-secondary { background: transparent; border: 1px solid var(--glass-border); color: var(--text); }
+
+        /* Ultra responsive */
+        @media (max-width: 480px) {
+            .sidebar { width: 100vw !important; transform: translateX(100%); position: fixed; height: 100vh; z-index: 200; }
+            .sidebar.open { transform: translateX(0); }
+            .chat-area, .input-wrapper { padding: 20px 5%; }
+            .message { max-width: 95%; flex-direction: column-reverse; gap: 10px; }
+            .avatar { order: 2; align-self: flex-end; }
+            .content-wrapper { order: 1; width: 100%; }
+        }
+
+        .marr-logo {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: 4px;
+            color: var(--accent);
+            text-align: center;
+            margin-bottom: 40px;
+            text-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+        }
+
+        .new-chat-btn {
+            background: transparent;
+            border: 1px dashed var(--accent);
+            color: var(--accent);
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .new-chat-btn:hover { background: rgba(0, 242, 254, 0.05); transform: translateY(-2px); }
+
+        /*Main Content - منطقة الدردشة*/
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        header {
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px 15%;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            scroll-behavior: smooth;
+        }
+
+        /*فقاعات الرسائل*/
+        .message {
+            max-width: 90%;
+            display: flex;
+            gap: 20px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .ai-avatar { background: var(--accent); color: #000; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3); }
+        .user-avatar { background: #30363d; color: #fff; }
+
+        .content {
+            padding-top: 5px;
+            line-height: 1.8;
+            font-size: 1.05rem;
+            width: 100%;
+        }
+
+        .content h1, .content h2 { color: var(--accent); margin-top: 20px; }
+        .content code { font-family: 'JetBrains Mono', monospace; background: #161b22; padding: 3px 6px; border-radius: 4px; color: #ff79c6; }
+        .content pre { background: #0d1117; padding: 20px; border-radius: 12px; overflow-x: auto; border: 1px solid var(--glass-border); }
+
+        /*منطقة الإدخال*/
+        .input-wrapper {
+            padding: 30px 15%;
+            background: linear-gradient(transparent, var(--bg-deep) 30%);
+        }
+
+        .input-box {
+            background: #161b22;
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .input-box:focus-within { border-color: var(--accent); box-shadow: 0 0 20px rgba(0, 242, 254, 0.1); }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            padding: 12px;
+            font-size: 1.1rem;
+            outline: none;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .send-btn {
+            background: var(--accent);
+            color: #000;
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .send-btn:hover { transform: scale(1.1) rotate(-10deg); filter: brightness(1.1); }
+
+        .typing-status {
+            font-size: 0.8rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+            display: none;
+            font-weight: bold;
+        }
+
+        /*Responsive*/
+        @media (max-width: 992px) {
+            .sidebar { display: none; }
+            .chat-area, .input-wrapper { padding-left: 5%; padding-right: 5%; }
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="marr-logo">MARR <span id="version">v2.2</span></div>
+        <button class="new-chat-btn" onclick="newChat()">
+            <i class="fa-solid fa-plus"></i> محادثة جديدة
+        </button>
+        <div class="chat-list" id="chat-list"></div>
+        <button class="settings-btn" onclick="toggleSettings()">
+            <i class="fa-solid fa-gear"></i> الإعدادات
+        </button>
+    </aside>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settings-modal">
+        <div class="modal-content">
+            <h2><i class="fa-solid fa-cog"></i> إعدادات MARR</h2>
+            <div class="form-group">
+                <label>مفتاح API 1</label>
+                <input type="text" id="api-key-1" placeholder="AIzaSy...">
+            </div>
+            <div class="form-group">
+                <label>مفتاح API 2</label>
+                <input type="text" id="api-key-2" placeholder="AIzaSy...">
+            </div>
+            <div class="form-group">
+                <label>مفتاح API 3</label>
+                <input type="text" id="api-key-3" placeholder="اختياري">
+            </div>
+            <div class="form-group">
+                <label>سرعة الكتابة</label>
+                <select id="type-speed">
+                    <option value="10">سريع جداً</option>
+                    <option value="20">سريع</option>
+                    <option value="30" selected>عادي</option>
+                    <option value="50">بطيء</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>الوضع الليلي</label>
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="dark-mode" checked>
+                    <span>مفعل</span>
+                </label>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="toggleSettings()">إلغاء</button>
+                <button class="btn btn-primary" onclick="saveSettings()">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="main-content">
+        <header>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 10px; height: 10px; background: #238636; border-radius: 50%;"></div>
+                <span style="font-weight: bold; font-size: 0.9rem;">نظام MARR متصل</span>
+            </div>
+            <i class="fa-solid fa-ellipsis-vertical text-muted"></i>
+        </header>
+
+        <div class="chat-area" id="chat-area">
+            <!-- الترحيب -->
+            <div class="message">
+                <div class="avatar ai-avatar"><i class="fa-solid fa-bolt"></i></div>
+                <div class="content">مرحباً بك في <b>MARR</b>. أنا ذكاؤك الخاص، كيف يمكنني خدمتك اليوم؟</div>
+            </div>
+        </div>
+
+        <div class="input-wrapper">
+            <div id="typing" class="typing-status">MARR يقوم بالتحليل الآن...</div>
+            <div class="input-box">
+                <input type="text" id="user-input" placeholder="اسأل MARR أي شيء..." autocomplete="off">
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const chatArea = document.getElementById('chat-area');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingStatus = document.getElementById('typing');
+
+        const API_KEYS = [
+            "AIzaSyA7gkgV3AY2XAHU21R7f3_eR1cS-ZS3Kgo",
+            "AIzaSyClPk2IbUODutuGQQBTcjHms-41sRFyMx0", 
+            "AIzaSyB8H1ESTQZW5OJ5R5y7Y8kLxM77Qj_38a4"
+        ];
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
+
+        // إعدادات من localStorage
+        let settings = JSON.parse(localStorage.getItem('marr_settings')) || {
+            apiKeys: API_KEYS,
+            typeSpeed: 30,
+            darkMode: true
+        };
+        API_KEYS.splice(0, API_KEYS.length, ...settings.apiKeys); // تحديث المفاتيح
+
+        let chats = JSON.parse(localStorage.getItem('marr_chats')) || [];
+        let currentChatId = localStorage.getItem('marr_currentChat') || 'new';
+
+        let lastWorkingKeyIndex = localStorage.getItem('marr_lastKeyIndex') || 0;
+        let typeSpeed = settings.typeSpeed;
+
+        async function sendToAI(message) {
+            const startIndex = parseInt(lastWorkingKeyIndex);
+            const keysToTry = [...API_KEYS.slice(startIndex), ...API_KEYS.slice(0, startIndex)];
+            
+            for (let i = 0; i < keysToTry.length; i++) {
+                const key = keysToTry[i];
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+                try {
+                    console.log(`جاري المحاولة مع المفتاح ${i+1}/${keysToTry.length}...`);
+                    
+                    const res = await fetch(API_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-goog-api-key": key
+                        },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: message }] }],
+                            systemInstruction: {
+                                parts: [{
+                                    text: "أنت MARR، مساعد ذكي متطور جداً. هويتك هي MARR فقط. تحدث بالعربية الفصحى بذكاء وعمق. لا تذكر جوجل أو جمناي. إذا طُلب منك كود برمجي، قدمه بأفضل جودة وتنسيق."
+                                }]
+                            },
+                            generationConfig: { temperature: 0.8, maxOutputTokens: 4096 }
+                        }),
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                    const data = await res.json();
+                    if (data.candidates && data.candidates[0]) {
+                        // حفظ المفتاح الناجح
+                        const globalIndex = (startIndex + i) % API_KEYS.length;
+                        lastWorkingKeyIndex = globalIndex;
+                        localStorage.setItem('marr_lastKeyIndex', globalIndex);
+                        return data.candidates[0].content.parts[0].text;
+                    } else {
+                        throw new Error('No candidates');
+                    }
+                } catch (err) {
+                    clearTimeout(timeoutId);
+                    console.warn(`المفتاح فشل: ${err.message}`);
+                    continue;
+                }
+            }
+            return "❌ جميع مفاتيح API غير متاحة حالياً. جرب لاحقاً.";
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            userInput.value = '';
+            
+            typingStatus.style.display = 'block';
+            typingStatus.textContent = 'MARR يفكر...';
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            try {
+                const response = await sendToAI(text);
+                addMessage('ai', response);
+            } catch (e) {
+                addMessage('ai', 'حدث خطأ غير متوقع. تحقق من اتصالك.');
+            } finally {
+                typingStatus.style.display = 'none';
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+                userInput.focus();
+            }
+        }
+
+        function addMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            
+            const avatar = role === 'user' 
+                ? '<div class="avatar user-avatar"><i class="fa-solid fa-user"></i></div>' 
+                : '<div class="avatar ai-avatar"><i class="fa-solid fa-bolt"></i></div>';
+
+            // Typing effect للردود الذكية
+            const tempContent = document.createElement('div');
+            tempContent.innerHTML = marked.parse(text);
+            const plainText = tempContent.textContent || text;
+
+            let toolsHTML = '';
+            if (role === 'ai') {
+                toolsHTML = `
+                    <div class="message-tools" style="margin-top: 8px; opacity: 0; transition: opacity 0.2s; display: flex; gap: 8px;">
+                        <button onclick="copyResponse(this)" style="background: none; border: none; color: #aaa; cursor: pointer; padding: 4px;" title="نسخ الرد">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                        <button onclick="exportChat()" style="background: none; border: none; color: #aaa; cursor: pointer; padding: 4px;" title="حفظ المحادثة">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                    </div>`;
+            }
+
+            msgDiv.innerHTML = `
+                ${avatar}
+                <div class="content-wrapper">
+                    <div class="content typing-content" style="opacity: 0; min-height: 20px;"></div>
+                    ${toolsHTML}
+                </div>
+            `;
+            
+            chatArea.appendChild(msgDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+
+            if (role === 'ai' && plainText.length > 0) {
+                // Typing effect
+                const typingEl = msgDiv.querySelector('.typing-content');
+                let i = 0;
+        const typeSpeed = Math.max(10, settings.typeSpeed - plainText.length * 0.05);
+                const interval = setInterval(() => {
+                    if (i < plainText.length) {
+                        typingEl.textContent += plainText.charAt(i);
+                        i++;
+                    } else {
+                        clearInterval(interval);
+                        typingEl.innerHTML = marked.parse(text);
+                        typingEl.classList.remove('typing-content');
+                        typingEl.style.opacity = '1';
+                        
+                        // أحداث الأدوات
+                        setupMessageTools(msgDiv);
+                    }
+                }, typeSpeed);
+            } else {
+                // رسائل فورية (user/errors)
+                const contentEl = msgDiv.querySelector('.content');
+                contentEl.innerHTML = marked.parse(text);
+                contentEl.style.opacity = '1';
+                if (role === 'ai') setupMessageTools(msgDiv);
+            }
+        }
+
+        function setupMessageTools(msgDiv) {
+            const content = msgDiv.querySelector('.content');
+            const toolsEl = msgDiv.querySelector('.message-tools');
+            if (!toolsEl) return;
+
+            const showTools = () => toolsEl.style.opacity = '1';
+            const hideTools = () => toolsEl.style.opacity = '0';
+
+            content.addEventListener('mouseenter', showTools);
+            content.addEventListener('mouseleave', hideTools);
+            
+            // Mobile: show on tap, hide after 3s
+            content.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                showTools();
+                setTimeout(hideTools, 3000);
+            }, { passive: false });
+        }
+
+        window.copyResponse = function(btn) {
+            const msgDiv = btn.closest('.message');
+            const content = msgDiv.querySelector('.content');
+            const text = content.textContent.trim();
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const icon = btn.querySelector('i');
+                const original = icon.innerHTML;
+                icon.className = 'fa-solid fa-check';
+                setTimeout(() => icon.className = 'fa-solid fa-copy', 1500);
+            }).catch(() => alert('فشل في النسخ'));
+        };
+
+        window.exportChat = function() {
+            const messages = Array.from(chatArea.querySelectorAll('.message')).map(msg => {
+                const isAI = msg.querySelector('.ai-avatar');
+                const role = isAI ? '🤖 MARR' : '👤 أنت';
+                const text = msg.querySelector('.content').textContent.trim();
+                return `${role}: ${text}`;
+            }).join('\n\n---\n\n');
+            
+            const date = new Date().toLocaleDateString('ar-SA');
+            const filename = `MARR_Chat_${date}.txt`;
+            const blob = new Blob([messages], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // تحسين الـ Markdown للتنسيق البرمجي
+        // دوال الإعدادات والحفظ
+        window.toggleSettings = function() {
+            document.getElementById('settings-modal').style.display = 'block';
+            loadSettingsForm();
+        };
+
+        window.saveSettings = function() {
+            settings.apiKeys = [
+                document.getElementById('api-key-1').value || API_KEYS[0],
+                document.getElementById('api-key-2').value || API_KEYS[1],
+                document.getElementById('api-key-3').value || API_KEYS[2]
+            ];
+            settings.typeSpeed = parseInt(document.getElementById('type-speed').value);
+            settings.darkMode = document.getElementById('dark-mode').checked;
+            
+            localStorage.setItem('marr_settings', JSON.stringify(settings));
+            API_KEYS.splice(0, API_KEYS.length, ...settings.apiKeys);
+            typeSpeed = settings.typeSpeed;
+            
+            document.getElementById('settings-modal').style.display = 'none';
+            alert('تم حفظ الإعدادات بنجاح!');
+        };
+
+        function loadSettingsForm() {
+            document.getElementById('api-key-1').value = settings.apiKeys[0] || '';
+            document.getElementById('api-key-2').value = settings.apiKeys[1] || '';
+            document.getElementById('api-key-3').value = settings.apiKeys[2] || '';
+            document.getElementById('type-speed').value = settings.typeSpeed;
+            document.getElementById('dark-mode').checked = settings.darkMode;
+        }
+
+        window.newChat = function() {
+            currentChatId = 'chat_' + Date.now();
+            chatArea.innerHTML = `
+                <div class="message">
+                    <div class="avatar ai-avatar"><i class="fa-solid fa-bolt"></i></div>
+                    <div class="content">محادثة جديدة جاهزة! كيف يمكنني مساعدتك؟</div>
+                </div>
+            `;
+            saveChats();
+            updateChatList();
+            userInput.focus();
+        };
+
+        function saveChats() {
+            const messages = Array.from(chatArea.querySelectorAll('.message')).map(msg => {
+                const role = msg.querySelector('.ai-avatar') ? 'ai' : 'user';
+                const text = msg.querySelector('.content').textContent.trim();
+                return { role, text };
+            });
+
+            const chatIndex = chats.findIndex(c => c.id === currentChatId);
+            if (chatIndex > -1) {
+                chats[chatIndex].messages = messages;
+                chats[chatIndex].updated = Date.now();
+            } else {
+                chats.push({
+                    id: currentChatId,
+                    title: messages[0]?.text?.slice(0, 30) + '...' || 'محادثة جديدة',
+                    messages,
+                    created: Date.now(),
+                    updated: Date.now()
+                });
+            }
+            localStorage.setItem('marr_chats', JSON.stringify(chats));
+            updateChatList();
+        }
+
+        function updateChatList() {
+            const chatList = document.getElementById('chat-list');
+            chatList.innerHTML = chats.map(chat => `
+                <div class="chat-item ${chat.id === currentChatId ? 'active' : ''}" onclick="loadChat('${chat.id}')">
+                    <div>${chat.title}</div>
+                    <i class="fa-solid fa-trash delete-chat" onclick="deleteChat('${chat.id}', event)"></i>
+                </div>
+            `).join('');
+        }
+
+        window.loadChat = function(chatId) {
+            const chat = chats.find(c => c.id === chatId);
+            if (chat) {
+                currentChatId = chatId;
+                chatArea.innerHTML = chat.messages.map(msg => {
+                    const div = document.createElement('div');
+                    div.className = 'message';
+                    div.innerHTML = `
+                        <div class="avatar ${msg.role === 'ai' ? 'ai-avatar' : 'user-avatar'}">
+                            <i class="fa-solid ${msg.role === 'ai' ? 'fa-bolt' : 'fa-user'}"></i>
+                        </div>
+                        <div class="content">${marked.parse(msg.text)}</div>
+                    `;
+                    setupMessageTools(div);
+                    return div.outerHTML;
+                }).join('');
+                localStorage.setItem('marr_currentChat', chatId);
+                updateChatList();
+            }
+        };
+
+        window.deleteChat = function(chatId, event) {
+            event.stopPropagation();
+            if (confirm('حذف هذه المحادثة؟')) {
+                chats = chats.filter(c => c.id !== chatId);
+                localStorage.setItem('marr_chats', JSON.stringify(chats));
+                if (currentChatId === chatId) newChat();
+                else updateChatList();
+            }
+        };
+
+        // حفظ تلقائي عند إضافة رسالة
+        const originalAddMessage = addMessage;
+        addMessage = function(role, text) {
+            originalAddMessage(role, text);
+            setTimeout(saveChats, 500);
+        };
+
+        // تحميل المحادثة الحالية عند بدء التطبيق
+        if (chats.length > 0 && chats.find(c => c.id === currentChatId)) {
+            loadChat(currentChatId);
+        } else if (chats.length === 0) {
+            newChat();
+        }
+
+        updateChatList();
+
+        // Mobile sidebar toggle
+        let sidebarOpen = false;
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 480 && !e.target.closest('#sidebar') && sidebarOpen) {
+                document.getElementById('sidebar').classList.remove('open');
+                sidebarOpen = false;
+            }
+        });
+        document.getElementById('sidebar').addEventListener('click', (e) => {
+            if (window.innerWidth <= 480) sidebarOpen = true;
+        });
+
+        marked.setOptions({
+            highlight: function(code) {
+                return code;
+            },
+            breaks: true
+        });
+    </script>
+</body>
+</html>;
+</body>
+</html>
