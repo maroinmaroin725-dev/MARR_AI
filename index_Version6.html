@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MARR — دردشة احترافية مع Google Generative</title>
+
+  <!-- خطوط وأيقونات -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- مكتبات خفيفة للـ Markdown والتنظيف وتلوين الكود -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#071021; --panel:#0f1720; --muted:#9aa4ad; --accent:#00f2fe; --text:#e6edf3; --glass:rgba(255,255,255,0.04);
+      --radius:12px;
+    }
+    *{ box-sizing:border-box; font-family:'Cairo',sans-serif; }
+    html,body{ height:100%; margin:0; background:linear-gradient(180deg,#020511 0%, #071021 100%); color:var(--text); -webkit-font-smoothing:antialiased; }
+    .container{ max-width:980px; margin:24px auto; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border:1px solid var(--glass); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; height:calc(100vh - 48px); }
+    header.appbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--glass); background:rgba(255,255,255,0.01); }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .brand .logo{ font-weight:800; letter-spacing:3px; color:var(--accent); font-size:1.25rem; }
+    .controls{ display:flex; gap:8px; align-items:center; }
+
+    /* chat area */
+    .chat-body{ flex:1; padding:18px; overflow:auto; display:flex; flex-direction:column; gap:14px; scroll-behavior:smooth; }
+    .message{ display:flex; gap:12px; max-width:85%; align-items:flex-start; }
+    .message.you{ margin-inline-start:auto; flex-direction:row-reverse; }
+    .avatar{ width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:18px; }
+    .avatar.user{ background:#30363d; color:#fff; }
+    .avatar.ai{ background:var(--accent); color:#000; box-shadow:0 8px 30px rgba(0,242,254,0.06); }
+
+    .bubble{ background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); padding:12px 14px; border-radius:10px; border:1px solid var(--glass); box-shadow:0 8px 30px rgba(0,0,0,0.45); position:relative; transition:transform .18s, box-shadow .18s; }
+    .bubble.new{ animation:pop .36s cubic-bezier(.2,.9,.2,1); transform-origin:right; box-shadow:0 14px 40px rgba(0,242,254,0.08); }
+    @keyframes pop{ 0%{ transform: translateY(6px) scale(.99); opacity:0 } 60%{ transform: translateY(-4px) scale(1.02); opacity:1 } 100%{ transform: translateY(0) scale(1); opacity:1 } }
+
+    .bubble pre{ background:#071119; padding:10px; border-radius:8px; overflow:auto; font-family:'JetBrains Mono',monospace; font-size:0.95rem; margin:8px 0; border:1px solid rgba(255,255,255,0.03); }
+    .meta{ font-size:0.78rem; color:var(--muted); margin-top:8px; }
+
+    /* tools on hover */
+    .msg-tools{ position:absolute; top:8px; left:8px; display:flex; gap:6px; opacity:0; pointer-events:none; transition:opacity .12s; }
+    .message:hover .msg-tools{ opacity:1; pointer-events:auto; }
+    .tool-btn{ background:transparent; border:none; color:var(--muted); padding:6px; border-radius:6px; cursor:pointer; }
+    .tool-btn:hover{ background:rgba(255,255,255,0.02); color:var(--text); }
+
+    /* input area */
+    .composer{ padding:14px; border-top:1px solid var(--glass); display:flex; gap:12px; align-items:center; background:linear-gradient(180deg, transparent, rgba(0,0,0,0.02)); }
+    .composer input[type="text"]{ flex:1; padding:12px; border-radius:10px; background:transparent; border:1px solid var(--glass); color:var(--text); outline:none; font-size:1rem; }
+    .send-btn{ background:var(--accent); color:#000; border:none; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; display:inline-flex; gap:8px; align-items:center; }
+
+    /* skeleton for AI reply */
+    .skeleton{ width:100%; display:block; background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border-radius:8px; height:72px; animation:shimmer 1.2s linear infinite; }
+    @keyframes shimmer{ 0%{ background-position:-200px 0 } 100%{ background-position:200px 0 } }
+
+    /* modal */
+    .modal-backdrop{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); z-index:60; }
+    .modal{ width:min(720px,96%); background:var(--panel); border-radius:12px; padding:16px; border:1px solid var(--glass); box-shadow:0 12px 40px rgba(0,0,0,0.6); }
+    .row{ display:flex; gap:10px; align-items:center; margin-bottom:10px; }
+    .row input, .row select{ flex:1; padding:10px; border-radius:8px; background:transparent; color:var(--text); border:1px solid #122; }
+
+    /* utilities */
+    .small{ font-size:0.85rem; color:var(--muted); }
+    .center{ text-align:center; }
+    .hidden{ display:none !important; }
+
+    /* responsive */
+    @media (max-width:680px){
+      .container{ margin:10px; height:calc(100vh - 20px); }
+      .brand .logo{ font-size:1.05rem; }
+      .avatar{ width:36px; height:36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="MARR Chat">
+    <header class="appbar">
+      <div class="brand">
+        <div class="logo">MARR</div>
+        <div class="small">دردشة ذكية متصلة بـ Google Generative</div>
+      </div>
+      <div class="controls">
+        <button id="btn-settings" class="tool-btn" title="مفتاح API وإعدادات"><i class="fa-solid fa-gear"></i></button>
+        <button id="btn-export" class="tool-btn" title="تصدير المحادثات"><i class="fa-solid fa-file-export"></i></button>
+        <button id="btn-import" class="tool-btn" title="استيراد المحادثات"><i class="fa-solid fa-file-import"></i></button>
+      </div>
+    </header>
+
+    <main class="chat-body" id="chat-body" role="log" aria-live="polite">
+      <!-- messages will be appended here -->
+    </main>
+
+    <div class="composer">
+      <input id="input-text" type="text" placeholder="اسأل MARR أي شيء..." aria-label="حقل الرسالة" />
+      <button id="btn-send" class="send-btn"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
+    </div>
+  </div>
+
+  <!-- modal لإدخال مفتاح الـ API -->
+  <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 style="margin:0 0 8px 0; color:var(--accent)">إعدادات الاتصال (Google Generative)</h3>
+
+      <div class="row">
+        <label class="small" style="min-width:120px;">مفتاح Google (X-goog-api-key):</label>
+        <input id="input-api-key" type="text" placeholder="أدخل مفتاح API هنا (من Google Cloud Console)" />
+      </div>
+
+      <div class="row">
+        <label class="small" style="min-width:120px;">حفظ المفتاح:</label>
+        <select id="key-save-mode">
+          <option value="session">جلسة فقط (موصى)</option>
+          <option value="local">تخزين محلي (غير آمن)</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="btn-close-modal" class="tool-btn">إغلاق</button>
+        <button id="btn-save-key" class="send-btn">حفظ المفتاح</button>
+      </div>
+
+      <p class="small" style="margin-top:10px; color:var(--muted);">
+        ملاحظة أمنيّة: تخزين المفتاح في المتصفح يسهل الاستخدام لكن يُعرّض المفتاح للخطر إذا كان الجهاز أو المتصفح مشاركاً. الخيار الآمن هو الاحتفاظ بالمفتاح محلياً في ملف غير مشارك واستخدامه من خلال server-side proxy.
+      </p>
+    </div>
+  </div>
+
+  <!-- hidden file input for import -->
+  <input id="import-file" type="file" accept=".json" style="display:none" />
+
+  <script>
+  // ===== Configuration & keys =====
+  const MODEL = 'gemini-flash-latest';
+  const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+  const CHATS_KEY = 'marr_simple_chats_v1';
+  const SESSION_KEY = 'marr_google_api_session';
+  const LOCAL_KEY = 'marr_google_api_local';
+
+  // ===== DOM =====
+  const chatBody = document.getElementById('chat-body');
+  const inputText = document.getElementById('input-text');
+  const btnSend = document.getElementById('btn-send');
+  const btnSettings = document.getElementById('btn-settings');
+  const modal = document.getElementById('modal-backdrop');
+  const btnCloseModal = document.getElementById('btn-close-modal');
+  const inputApiKey = document.getElementById('input-api-key');
+  const keySaveMode = document.getElementById('key-save-mode');
+  const btnSaveKey = document.getElementById('btn-save-key');
+  const btnExport = document.getElementById('btn-export');
+  const btnImport = document.getElementById('btn-import');
+  const importFile = document.getElementById('import-file');
+
+  // ===== Utilities =====
+  function showToast(msg, t=1800){
+    const d = document.createElement('div');
+    d.textContent = msg;
+    Object.assign(d.style, { position:'fixed', left:'50%', transform:'translateX(-50%)', bottom:'24px', background:'rgba(0,0,0,0.7)', color:'#fff', padding:'8px 12px', borderRadius:'8px', zIndex:9999 });
+    document.body.appendChild(d);
+    setTimeout(()=> d.remove(), t);
+  }
+
+  function sanitizeHTML(md){
+    const raw = (typeof marked !== 'undefined') ? marked.parse(md||'') : md;
+    return DOMPurify.sanitize(raw, {ALLOWED_ATTR:['href','target','class']});
+  }
+
+  function formatTime(ts){ return new Date(ts).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'}); }
+
+  // ===== Chat storage =====
+  let chats = []; // array of {id,title, messages:[{id,role,text,ts}]}
+  let activeChatId = null;
+
+  function loadChats(){
+    try{ chats = JSON.parse(localStorage.getItem(CHATS_KEY) || '[]'); } catch(e){ chats = []; }
+    if(!chats.length) {
+      const id = 'c_'+Date.now();
+      chats = [{ id, title: 'المحادثة الرئيسية', messages: [] }];
+      activeChatId = id;
+      saveChats();
+    } else {
+      activeChatId = chats[0].id;
+    }
+    renderAllMessages();
+  }
+
+  function saveChats(){
+    localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  }
+
+  function appendToActive(role, text){
+    const chat = chats.find(c=> c.id === activeChatId);
+    if(!chat) return;
+    const msg = { id: 'm_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), role, text, ts: Date.now() };
+    chat.messages.push(msg);
+    saveChats();
+    renderMessage(msg);
+    return msg;
+  }
+
+  // ===== Render =====
+  function clearChatBody(){ chatBody.innerHTML = ''; }
+
+  function renderAllMessages(){
+    clearChatBody();
+    const chat = chats.find(c=> c.id === activeChatId);
+    if(!chat) return;
+    chat.messages.forEach(m => renderMessage(m));
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+
+  function makeMessageElement(msg){
+    const wrap = document.createElement('div');
+    wrap.className = 'message' + (msg.role==='user' ? ' you' : '');
+    wrap.dataset.id = msg.id;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar ' + (msg.role==='user' ? 'user' : 'ai');
+    avatar.innerHTML = msg.role==='user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-bolt"></i>';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble new';
+    // content
+    const content = document.createElement('div');
+    content.className = 'content';
+    content.innerHTML = sanitizeHTML(msg.text || '');
+
+    // tools
+    const tools = document.createElement('div');
+    tools.className = 'msg-tools';
+    // copy markdown
+    const tCopy = document.createElement('button'); tCopy.className='tool-btn'; tCopy.title='نسخ';
+    tCopy.innerHTML = '<i class="fa-regular fa-copy"></i>';
+    tCopy.addEventListener('click', (e)=> { e.stopPropagation(); navigator.clipboard.writeText(msg.text || '').then(()=> showToast('تم النسخ')); });
+    // copy plain
+    const tPlain = document.createElement('button'); tPlain.className='tool-btn'; tPlain.title='نسخ نص عادي';
+    tPlain.innerHTML = '<i class="fa-solid fa-file-lines"></i>';
+    tPlain.addEventListener('click', (e)=> { e.stopPropagation(); const tmp = document.createElement('div'); tmp.innerHTML = DOMPurify.sanitize(marked.parse(msg.text||'')); navigator.clipboard.writeText(tmp.textContent||tmp.innerText||msg.text||'').then(()=> showToast('نسخ كنص عادي')); });
+    // copy code blocks only
+    const tCode = document.createElement('button'); tCode.className='tool-btn'; tCode.title='نسخ كود';
+    tCode.innerHTML = '<i class="fa-solid fa-code"></i>';
+    tCode.addEventListener('click', (e)=> { e.stopPropagation(); const codes = extractCodeBlocks(msg.text||''); if(!codes.length){ showToast('لا توجد كتل كود'); return;} navigator.clipboard.writeText(codes.join('\\n\\n')).then(()=> showToast('تم نسخ الكود')); });
+
+    tools.appendChild(tCopy); tools.appendChild(tPlain); tools.appendChild(tCode);
+
+    // meta
+    const meta = document.createElement('div'); meta.className='meta small'; meta.textContent = formatTime(msg.ts);
+
+    bubble.appendChild(tools);
+    bubble.appendChild(content);
+    bubble.appendChild(meta);
+
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    return wrap;
+  }
+
+  function renderMessage(msg){
+    const el = makeMessageElement(msg);
+    chatBody.appendChild(el);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    // remove 'new' class after animation
+    setTimeout(()=> {
+      const b = el.querySelector('.bubble');
+      if(b) b.classList.remove('new');
+    }, 700);
+  }
+
+  function extractCodeBlocks(text){
+    const res = [];
+    const regex = /```([\\s\\S]*?)```/g;
+    let m;
+    while((m = regex.exec(text)) !== null){ res.push(m[1].trim()); }
+    // also inline code fallback
+    if(res.length === 0){
+      const inline = text.match(/`([^`]+)`/g);
+      if(inline) inline.forEach(i=> res.push(i.replace(/`/g,'')));
+    }
+    return res;
+  }
+
+  // ===== API key handling =====
+  function setApiKeyToSession(key){ sessionStorage.setItem(SESSION_KEY, key); }
+  function setApiKeyToLocal(key){ localStorage.setItem(LOCAL_KEY, key); }
+  function getApiKey(){
+    // priority: session, then local
+    return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(LOCAL_KEY) || (window.MARR_CONFIG && window.MARR_CONFIG.googleApiKey) || '';
+  }
+  function clearApiKey(){
+    sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(LOCAL_KEY);
+  }
+
+  // ===== send / receive =====
+  async function sendToGoogle(text, onPartial=null){
+    const key = getApiKey();
+    if(!key) throw new Error('لا يوجد مفتاح API. افتح الإعدادات وأضف مفتاح Google (X-goog-api-key).');
+
+    const payload = {
+      contents: [{ parts: [{ text }] }]
+    };
+
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-goog-api-key': key
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if(!res.ok){
+      const txt = await res.text();
+      throw new Error('خطأ من الخادم: ' + (res.status) + ' ' + txt);
+    }
+    const data = await res.json();
+    // parse response: candidates -> content.parts[0].text
+    if(data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts){
+      return data.candidates[0].content.parts.map(p=>p.text).join('\\n');
+    }
+    // fallback to output
+    if(data && data.output && Array.isArray(data.output) && data.output[0] && data.output[0].content){
+      return JSON.stringify(data.output[0].content);
+    }
+    return 'لم يتم الحصول على رد صالح من الخادم.';
+  }
+
+  // ===== handle send click =====
+  btnSend.addEventListener('click', async ()=>{
+    const text = inputText.value.trim(); if(!text) return;
+    // append user message
+    appendToActive('user', text);
+    inputText.value = '';
+    // append placeholder skeleton AI message and keep its DOM ref
+    const placeholder = { id: 'm_draft_'+Date.now(), role:'ai', text: '', ts: Date.now() };
+    const chat = chats.find(c=> c.id === activeChatId);
+    chat.messages.push(placeholder);
+    saveChats();
+    renderAllMessages(); // shows skeleton as empty content
+    // find last message element to replace later
+    const lastEl = chatBody.querySelector(`[data-id="${placeholder.id}"]`);
+    if(lastEl){
+      const bubble = lastEl.querySelector('.bubble .content');
+      if(bubble) bubble.innerHTML = '<div class="skeleton" style="height:72px; border-radius:8px;"></div>';
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    try {
+      const aiText = await sendToGoogle(text);
+      // replace placeholder in storage
+      const m = chat.messages.find(m=> m.id === placeholder.id);
+      if(m){ m.text = aiText; m.ts = Date.now(); saveChats(); }
+      renderAllMessages();
+    } catch(err){
+      console.error(err);
+      // update placeholder with error
+      const m = chat.messages.find(m=> m.id === placeholder.id);
+      if(m){ m.text = 'عذراً، حدث خطأ: ' + (err.message || 'خطأ'); m.ts = Date.now(); saveChats(); }
+      renderAllMessages();
+      showToast('فشل إرسال الطلب: ' + (err.message || ''), 3500);
+    }
+  });
+
+  // allow Enter key
+  inputText.addEventListener('keypress', (e)=> { if(e.key === 'Enter') btnSend.click(); });
+
+  // ===== settings modal events =====
+  btnSettings.addEventListener('click', ()=> {
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden','false');
+    // populate current key (session > local)
+    inputApiKey.value = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(LOCAL_KEY) || '';
+    keySaveMode.value = sessionStorage.getItem(SESSION_KEY) ? 'session' : (localStorage.getItem(LOCAL_KEY) ? 'local' : 'session');
+  });
+  btnCloseModal.addEventListener('click', ()=> { modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); });
+
+  btnSaveKey.addEventListener('click', ()=> {
+    const k = inputApiKey.value.trim();
+    if(!k){ showToast('المفتاح فارغ'); return; }
+    if(keySaveMode.value === 'session'){ setApiKeyToSession(k); showToast('تم حفظ المفتاح في جلسة المتصفح'); }
+    else { setApiKeyToLocal(k); showToast('تم حفظ المفتاح محلياً (تحذير: غير آمن)'); }
+    modal.style.display = 'none';
+  });
+
+  // ===== export/import =====
+  btnExport.addEventListener('click', ()=> {
+    const blob = new Blob([JSON.stringify({ exportedAt: Date.now(), chats }, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'marr_chats_export.json'; a.click(); URL.revokeObjectURL(url);
+  });
+  btnImport.addEventListener('click', ()=> importFile.click());
+  importFile.addEventListener('change', (e)=> {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = (ev)=> {
+      try{
+        const obj = JSON.parse(ev.target.result);
+        if(Array.isArray(obj.chats)) chats = obj.chats.concat(chats);
+        else if(obj.id && obj.messages) chats.unshift(obj);
+        saveChats(); renderAllMessages(); showToast('تم استيراد المحادثات');
+      } catch(err){ showToast('ملف غير صالح'); }
+    };
+    r.readAsText(f);
+  });
+
+  // ===== helper to render existing messages on load =====
+  (function init(){
+    loadChats();
+    // if there's an embedded config key (optional), use it as session key
+    try {
+      if(window.MARR_CONFIG && window.MARR_CONFIG.googleApiKey){
+        sessionStorage.setItem(SESSION_KEY, window.MARR_CONFIG.googleApiKey);
+
