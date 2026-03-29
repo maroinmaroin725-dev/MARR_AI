@@ -184,9 +184,28 @@
         }
 
         /*Responsive*/
-        @media (max-width: 992px) {
-            .sidebar { display: none; }
+@media (max-width: 992px) {
+            .sidebar { 
+                width: 100vw !important; 
+                transform: translateX(100%); 
+                position: fixed; 
+                height: 100vh; 
+                z-index: 200; 
+                transition: transform 0.3s ease; 
+            }
+            .sidebar.open { transform: translateX(0); }
             .chat-area, .input-wrapper { padding-left: 5%; padding-right: 5%; }
+        }
+
+        @media (max-width: 480px) {
+            .message { 
+                max-width: 95%; 
+                gap: 12px; 
+            }
+            .chat-area { padding: 20px 4%; }
+            .input-wrapper { padding: 20px 4%; }
+            input { font-size: 1rem; padding: 10px; }
+            .send-btn { width: 40px; height: 40px; font-size: 1rem; }
         }
 
         ::-webkit-scrollbar { width: 6px; }
@@ -195,15 +214,35 @@
 </head>
 <body>
 
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
+        <i class="fa-solid fa-bars sidebar-toggle" onclick="toggleSidebar()" style="position: absolute; left: 10px; top: 10px; font-size: 1.5rem; cursor: pointer; z-index: 201; display: none;"></i>
         <div class="marr-logo">MARR</div>
-        <button class="new-chat-btn" onclick="location.reload()">
+        <button class="new-chat-btn" onclick="newChat()">
             <i class="fa-solid fa-plus"></i> محادثة جديدة
         </button>
-        <div style="margin-top: auto; font-size: 0.7rem; color: #555; text-align: center;">
-            إصدار v2.0.4 - Premium
-        </div>
+        <div class="chat-list" id="chat-list" style="display: none;"></div>
+        <button class="settings-btn" onclick="toggleSettings()">
+            <i class="fa-solid fa-gear"></i> الإعدادات
+        </button>
     </aside>
+
+    <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+
+        // Show toggle on mobile
+        if (window.innerWidth <= 992) {
+            document.querySelector('.sidebar-toggle').style.display = 'block';
+        }
+        window.addEventListener('resize', () => {
+            if (window.innerWidth <= 992) {
+                document.querySelector('.sidebar-toggle').style.display = 'block';
+            } else {
+                document.querySelector('.sidebar-toggle').style.display = 'none';
+            }
+        });
+    </script>
 
     <main class="main-content">
         <header>
